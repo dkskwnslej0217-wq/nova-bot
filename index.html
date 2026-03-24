@@ -1,13 +1,519 @@
 <!DOCTYPE html>
 <html lang="ko">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>NOVA — AI 탐험 가이드</title>
-    <meta name="description" content="AI 세계를 안내하는 우주 탐험 가이드 NOVA" />
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>NOVA UNIVERSE</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Noto+Sans+KR:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#020408; font-family:'Noto Sans KR',-apple-system,sans-serif; height:100vh; overflow:hidden; }
+canvas#bg { position:fixed; inset:0; z-index:0; }
+
+#pw-screen {
+  position:fixed; inset:0; z-index:100;
+  display:flex; align-items:center; justify-content:center; background:#020408;
+}
+#pw-screen.hidden { display:none; }
+.pw-box {
+  background:rgba(17,10,40,0.95); border:1px solid rgba(167,139,250,0.25);
+  border-radius:20px; padding:48px 40px; width:min(360px,90vw); text-align:center;
+}
+.pw-logo {
+  font-family:'Orbitron',monospace; font-size:22px; font-weight:900;
+  background:linear-gradient(90deg,#c4b5fd,#93c5fd);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  letter-spacing:6px; margin-bottom:6px;
+}
+.pw-sub { color:rgba(167,139,250,0.4); font-size:11px; letter-spacing:3px; font-family:monospace; margin-bottom:32px; }
+.pw-input {
+  width:100%; background:rgba(255,255,255,0.04);
+  border:1px solid rgba(167,139,250,0.2); border-radius:12px;
+  padding:14px 16px; color:rgba(224,231,255,0.9);
+  font-size:18px; text-align:center; letter-spacing:6px;
+  outline:none; margin-bottom:12px; font-family:monospace; transition:border-color 0.2s;
+}
+.pw-input:focus { border-color:rgba(167,139,250,0.5); }
+.pw-input.error { border-color:rgba(239,68,68,0.6); animation:shake 0.3s; }
+@keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
+.pw-btn {
+  width:100%; padding:14px;
+  background:linear-gradient(135deg,rgba(124,58,237,0.8),rgba(99,102,241,0.7));
+  border:1px solid rgba(167,139,250,0.3); border-radius:12px;
+  color:#fff; font-size:14px; cursor:pointer; letter-spacing:2px;
+  font-family:'Noto Sans KR',sans-serif; transition:all 0.2s;
+}
+.pw-btn:hover { filter:brightness(1.15); transform:scale(1.02); }
+.pw-hint { margin-top:16px; font-size:11px; color:rgba(167,139,250,0.3); }
+
+#universe-screen {
+  position:fixed; inset:0; z-index:10;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+}
+#universe-screen.hidden { display:none; }
+
+.u-title { text-align:center; margin-bottom:8px; animation:fadeDown 1s ease; }
+.u-title h1 {
+  font-family:'Orbitron',monospace; font-size:clamp(20px,4.5vw,48px); font-weight:900;
+  background:linear-gradient(90deg,#c4b5fd,#93c5fd,#c4b5fd); background-size:200%;
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  letter-spacing:6px; animation:shimmer 4s linear infinite;
+}
+.u-title p { color:rgba(167,139,250,0.4); font-size:11px; letter-spacing:4px; margin-top:4px; font-family:monospace; }
+
+@keyframes shimmer { 0%{background-position:0%} 100%{background-position:200%} }
+@keyframes fadeDown { from{opacity:0;transform:translateY(-12px)} to{opacity:1;transform:translateY(0)} }
+@keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+@keyframes pulse-ring { 0%{transform:scale(1);opacity:0.5} 100%{transform:scale(1.7);opacity:0} }
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+
+.star-field { position:relative; width:min(500px,88vw); height:min(500px,88vw); }
+.orbit-ring {
+  position:absolute; border-radius:50%; border:1px solid rgba(167,139,250,0.07);
+  left:50%; top:50%; transform:translate(-50%,-50%); pointer-events:none;
+}
+.sun {
+  position:absolute; left:50%; top:50%;
+  transform:translate(-50%,-50%);
+  display:flex; flex-direction:column; align-items:center; z-index:5;
+}
+.sun-core {
+  width:58px; height:58px; border-radius:50%;
+  background:radial-gradient(circle,#fbbf24,#f59e0b,#d97706);
+  box-shadow:0 0 36px rgba(251,191,36,0.35),0 0 70px rgba(251,191,36,0.12);
+  display:flex; align-items:center; justify-content:center; font-size:24px;
+  animation:float 5s ease-in-out infinite;
+}
+.sun-label { margin-top:6px; font-size:9px; color:rgba(251,191,36,0.5); letter-spacing:3px; font-family:monospace; }
+
+.star-node {
+  position:absolute; cursor:pointer; transform:translate(-50%,-50%);
+  display:flex; flex-direction:column; align-items:center;
+  animation:float var(--fd,4s) ease-in-out var(--fd2,0s) infinite; transition:filter 0.3s;
+}
+.star-node:hover { filter:brightness(1.5); }
+.star-glow { position:relative; display:flex; align-items:center; justify-content:center; }
+.star-ring { position:absolute; border-radius:50%; border:1px solid currentColor; animation:pulse-ring 2.2s ease-out infinite; }
+.star-ring:nth-child(2) { animation-delay:0.8s; }
+.star-core { border-radius:50%; position:relative; z-index:2; display:flex; align-items:center; justify-content:center; transition:transform 0.3s; }
+.star-node:hover .star-core { transform:scale(1.12); }
+.star-label { margin-top:7px; font-size:10px; letter-spacing:2px; font-family:monospace; text-align:center; white-space:nowrap; }
+.star-sub { font-size:9px; opacity:0.45; margin-top:2px; text-align:center; }
+
+#bot-screen {
+  position:fixed; inset:0; z-index:50;
+  background:rgba(2,4,8,0.97); backdrop-filter:blur(20px);
+  display:flex; flex-direction:column; animation:fadeIn 0.3s ease;
+}
+#bot-screen.hidden { display:none; }
+
+.bot-header {
+  display:flex; align-items:center; gap:12px; padding:14px 18px;
+  background:rgba(2,4,8,0.9); border-bottom:1px solid rgba(167,139,250,0.12); flex-shrink:0;
+}
+.back-btn {
+  background:rgba(124,58,237,0.12); border:1px solid rgba(167,139,250,0.2);
+  border-radius:10px; padding:7px 14px; color:rgba(196,181,253,0.8); font-size:12px;
+  cursor:pointer; font-family:'Noto Sans KR',sans-serif; transition:all 0.2s; flex-shrink:0;
+}
+.back-btn:hover { background:rgba(124,58,237,0.25); }
+.bot-name {
+  font-family:'Orbitron',monospace; font-weight:700; font-size:16px;
+  background:linear-gradient(90deg,#c4b5fd,#93c5fd);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent; letter-spacing:3px;
+}
+.bot-status { display:flex; align-items:center; gap:4px; margin-top:2px; }
+.status-dot { width:5px; height:5px; border-radius:50%; background:#4ade80; box-shadow:0 0 6px #4ade80; }
+.status-txt { font-size:10px; color:rgba(167,139,250,0.5); font-family:'Orbitron',monospace; letter-spacing:1px; }
+
+.messages { flex:1; overflow-y:auto; padding:18px 14px 8px; }
+.messages::-webkit-scrollbar { width:0; }
+
+.msg-wrap { display:flex; align-items:flex-end; gap:9px; margin-bottom:14px; animation:msgIn 0.25s ease; }
+@keyframes msgIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+.msg-wrap.user { flex-direction:row-reverse; }
+.msg-avatar {
+  width:30px; height:30px; flex-shrink:0; border-radius:50%;
+  background:radial-gradient(circle,#7c3aed,#4c1d95); border:1px solid rgba(167,139,250,0.35);
+  display:flex; align-items:center; justify-content:center; font-size:12px;
+  box-shadow:0 0 10px rgba(124,58,237,0.4);
+}
+.msg-bubble { max-width:72%; padding:11px 14px; font-size:13px; line-height:1.7; }
+.msg-bubble.bot {
+  background:rgba(17,10,40,0.9); border:1px solid rgba(167,139,250,0.18);
+  border-radius:4px 16px 16px 16px; color:rgba(224,231,255,0.9);
+  box-shadow:0 3px 16px rgba(0,0,0,0.35);
+}
+.msg-bubble.user {
+  background:linear-gradient(135deg,rgba(124,58,237,0.75),rgba(99,102,241,0.65));
+  border:1px solid rgba(167,139,250,0.35); border-radius:16px 4px 16px 16px; color:#fff;
+}
+
+.quick-btns {
+  padding:8px 14px; display:flex; gap:6px; overflow-x:auto; flex-shrink:0;
+  background:rgba(2,4,8,0.6); border-top:1px solid rgba(167,139,250,0.07);
+}
+.quick-btns::-webkit-scrollbar { width:0; height:0; }
+.quick-btn {
+  background:rgba(124,58,237,0.1); border:1px solid rgba(167,139,250,0.18);
+  border-radius:18px; padding:6px 12px; color:rgba(196,181,253,0.75); font-size:11px;
+  cursor:pointer; white-space:nowrap; flex-shrink:0;
+  font-family:'Noto Sans KR',sans-serif; transition:all 0.2s;
+}
+.quick-btn:hover { background:rgba(124,58,237,0.22); border-color:rgba(167,139,250,0.4); }
+
+.input-area {
+  padding:10px 14px 24px; display:flex; gap:9px; align-items:flex-end;
+  background:rgba(2,4,8,0.85); border-top:1px solid rgba(167,139,250,0.08); flex-shrink:0;
+}
+.input-box {
+  flex:1; background:rgba(17,10,40,0.8);
+  border:1px solid rgba(167,139,250,0.22); border-radius:18px; padding:10px 15px;
+}
+.input-box textarea {
+  width:100%; background:none; border:none; outline:none;
+  color:rgba(224,231,255,0.9); font-size:13px;
+  font-family:'Noto Sans KR',sans-serif; line-height:1.5;
+  resize:none; max-height:80px; overflow:auto; caret-color:#a78bfa;
+}
+.input-box textarea::placeholder { color:rgba(167,139,250,0.3); }
+.send-btn {
+  width:42px; height:42px; border-radius:50%; flex-shrink:0;
+  background:radial-gradient(circle,#7c3aed,#4c1d95);
+  border:1px solid rgba(167,139,250,0.4); color:#fff; font-size:16px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 0 16px rgba(124,58,237,0.4); transition:all 0.2s;
+}
+.send-btn:disabled { background:rgba(255,255,255,0.05); border-color:rgba(255,255,255,0.07); box-shadow:none; cursor:not-allowed; color:rgba(255,255,255,0.2); }
+
+.typing-dots { display:flex; gap:4px; align-items:center; padding:2px 0; }
+.typing-dots span {
+  width:5px; height:5px; border-radius:50%;
+  background:radial-gradient(circle,#a78bfa,#7c3aed);
+  animation:dotPulse 1.4s ease-in-out infinite; box-shadow:0 0 5px #a78bfa;
+}
+.typing-dots span:nth-child(2) { animation-delay:0.2s; }
+.typing-dots span:nth-child(3) { animation-delay:0.4s; }
+@keyframes dotPulse { 0%,100%{opacity:0.4;transform:scale(1)} 50%{opacity:1;transform:scale(1.4)} }
+
+#panel-screen {
+  position:fixed; inset:0; z-index:40;
+  background:rgba(2,4,8,0.85); backdrop-filter:blur(18px);
+  display:flex; align-items:center; justify-content:center; animation:fadeIn 0.25s ease;
+}
+#panel-screen.hidden { display:none; }
+.panel-box {
+  background:rgba(17,10,40,0.97); border:1px solid rgba(167,139,250,0.2);
+  border-radius:22px; padding:34px 28px; width:min(400px,90vw); position:relative;
+}
+.panel-close {
+  position:absolute; top:14px; right:16px; background:none; border:none;
+  color:rgba(167,139,250,0.35); font-size:20px; cursor:pointer; transition:color 0.2s;
+}
+.panel-close:hover { color:rgba(167,139,250,0.8); }
+.panel-icon { font-size:36px; margin-bottom:12px; }
+.panel-name { font-family:'Orbitron',monospace; font-size:15px; font-weight:700; color:#c4b5fd; letter-spacing:3px; margin-bottom:5px; }
+.panel-desc { color:rgba(167,139,250,0.55); font-size:13px; line-height:1.7; margin-bottom:18px; }
+.panel-tag {
+  display:inline-block; background:rgba(124,58,237,0.12); border:1px solid rgba(167,139,250,0.18);
+  border-radius:18px; padding:4px 12px; font-size:11px; color:rgba(196,181,253,0.65); margin:3px;
+}
+.panel-btn {
+  margin-top:18px; width:100%; padding:13px;
+  background:linear-gradient(135deg,rgba(124,58,237,0.8),rgba(99,102,241,0.6));
+  border:1px solid rgba(167,139,250,0.3); border-radius:12px;
+  color:#fff; font-size:13px; cursor:pointer;
+  font-family:'Noto Sans KR',sans-serif; transition:all 0.2s;
+}
+.panel-btn:hover { filter:brightness(1.15); }
+.panel-btn:disabled { opacity:0.35; cursor:not-allowed; filter:none; }
+</style>
+</head>
+<body>
+<canvas id="bg"></canvas>
+
+<!-- 비밀번호 -->
+<div id="pw-screen">
+  <div class="pw-box">
+    <div class="pw-logo">NOVA</div>
+    <div class="pw-sub">UNIVERSE · SECTOR 001</div>
+    <input class="pw-input" id="pw-input" type="password" placeholder="· · · · · ·" maxlength="30"/>
+    <button class="pw-btn" id="pw-btn">🚀 입장하기</button>
+    <p class="pw-hint">초대받은 탐험가만 입장할 수 있어요</p>
+  </div>
+</div>
+
+<!-- 우주 메인 -->
+<div id="universe-screen" class="hidden">
+  <div class="u-title">
+    <h1>NOVA UNIVERSE</h1>
+    <p>AI EXPLORATION SYSTEM · SECTOR 001</p>
+  </div>
+  <div class="star-field" id="star-field">
+    <div class="orbit-ring" style="width:150px;height:150px;"></div>
+    <div class="orbit-ring" style="width:270px;height:270px;"></div>
+    <div class="orbit-ring" style="width:390px;height:390px;"></div>
+    <div class="orbit-ring" style="width:490px;height:490px;"></div>
+    <div class="sun"><div class="sun-core">☀️</div><div class="sun-label">NOVA CORE</div></div>
+  </div>
+</div>
+
+<!-- NOVA 봇 -->
+<div id="bot-screen" class="hidden">
+  <div class="bot-header">
+    <button class="back-btn" id="back-btn">← 우주로</button>
+    <div>
+      <div class="bot-name">NOVA</div>
+      <div class="bot-status"><div class="status-dot"></div><span class="status-txt">AI NAVIGATOR</span></div>
+    </div>
+  </div>
+  <div class="messages" id="messages"></div>
+  <div class="quick-btns">
+    <button class="quick-btn" onclick="sendMsg('AI로 돈 벌 수 있어요?')">🚀 AI로 돈 벌 수 있어요?</button>
+    <button class="quick-btn" onclick="sendMsg('뭐부터 시작해요?')">⭐ 뭐부터 시작해요?</button>
+    <button class="quick-btn" onclick="sendMsg('코딩 몰라도 되나요?')">🪐 코딩 몰라도 되나요?</button>
+    <button class="quick-btn" onclick="sendMsg('봇은 어떻게 만들어요?')">💫 봇은 어떻게 만들어요?</button>
+    <button class="quick-btn" onclick="sendMsg('얼마나 벌 수 있어요?')">🌟 얼마나 벌 수 있어요?</button>
+  </div>
+  <div class="input-area">
+    <div class="input-box">
+      <textarea id="chat-input" rows="1" placeholder="우주에 신호를 보내세요... ✨"></textarea>
+    </div>
+    <button class="send-btn" id="send-btn" disabled>✦</button>
+  </div>
+</div>
+
+<!-- 별 패널 -->
+<div id="panel-screen" class="hidden">
+  <div class="panel-box">
+    <button class="panel-close" id="panel-close">✕</button>
+    <div class="panel-icon" id="p-icon"></div>
+    <div class="panel-name" id="p-name"></div>
+    <div class="panel-desc" id="p-desc"></div>
+    <div id="p-tags"></div>
+    <button class="panel-btn" id="p-btn"></button>
+  </div>
+</div>
+
+<script>
+// ⚙️ 비밀번호만 바꾸면 돼요!
+const PASSWORD = 'nova2025';
+
+// ─── 별 데이터 ───
+const STARS = [
+  { id:'nova', icon:'✦', label:'NOVA', sub:'AI 탐험 가이드', color:'#a78bfa', glow:'rgba(167,139,250,0.4)', size:50, pos:{x:72,y:26}, fd:'4.2s', fd2:'0s', desc:'AI 세계를 안내하는 첫 번째 별. 코딩 없이 AI로 수익 내는 방법을 알려드려요.', tags:['AI 가이드','수익화','초보 가능','무료'], status:'live', action:'bot' },
+  { id:'forge', icon:'◈', label:'FORGE', sub:'봇 제작소', color:'#60a5fa', glow:'rgba(96,165,250,0.3)', size:40, pos:{x:27,y:60}, fd:'5s', fd2:'0.5s', desc:'소상공인을 위한 맞춤형 AI 봇을 만드는 곳. 곧 오픈 예정이에요.', tags:['봇 제작','자동화','소상공인'], status:'soon', action:'panel' },
+  { id:'atlas', icon:'⬡', label:'ATLAS', sub:'지식 아카이브', color:'#34d399', glow:'rgba(52,211,153,0.3)', size:36, pos:{x:78,y:68}, fd:'6s', fd2:'1s', desc:'AI 활용법, 수익화 전략, 도구 가이드를 모아둔 지식 창고.', tags:['가이드','전략','도구 모음'], status:'soon', action:'panel' },
+  { id:'nexus', icon:'◉', label:'NEXUS', sub:'커뮤니티', color:'#f472b6', glow:'rgba(244,114,182,0.3)', size:32, pos:{x:17,y:28}, fd:'4.8s', fd2:'1.5s', desc:'같은 방향을 보는 탐험가들이 모이는 공간.', tags:['커뮤니티','네트워크','성장'], status:'soon', action:'panel' },
+  { id:'mystery', icon:'✧', label:'???', sub:'미지의 별', color:'rgba(167,139,250,0.3)', glow:'rgba(167,139,250,0.1)', size:26, pos:{x:54,y:83}, fd:'7s', fd2:'2s', desc:'아직 발견되지 않은 별이에요. 우주는 계속 확장 중...', tags:['미지','탐험'], status:'mystery', action:'panel' }
+];
+
+// ─── NOVA 답변 데이터 (API 없이 작동) ───
+const REPLIES = [
+  {
+    keys: ['돈','수익','벌','얼마','월급','부수입'],
+    answer: `좋은 질문이에요 🚀\n\n**가장 빠른 방법**은 소상공인 가게에 AI 봇을 만들어주는 거예요!\n\n✦ 미용실 예약봇 → 30~50만원\n✦ 식당 메뉴 안내봇 → 30만원\n✦ 월 유지비 → 5~10만원\n\n코딩 몰라도 돼요. Claude한테 만들어달라고 하면 됩니다 ✨\n\n또 궁금한 별이 있나요? 🌟`
+  },
+  {
+    keys: ['시작','처음','뭐부터','어디서','입문'],
+    answer: `딱 하나만 해보세요 ⭐\n\n**claude.ai 가입 → "미용실 예약봇 만들어줘" 입력**\n\n5분이면 첫 번째 별이 생겨요 ✨\n\n순서:\n1️⃣ claude.ai 가입 (무료)\n2️⃣ "미용실 봇 만들어줘" 입력\n3️⃣ 코드 받기\n4️⃣ Vercel에 올리기\n5️⃣ URL 완성!\n\n또 궁금한 별이 있나요? 🌟`
+  },
+  {
+    keys: ['코딩','개발','프로그래밍','코드','어려'],
+    answer: `완전 됩니다! 🪐\n\nNOVA도 코딩 없이 만들어졌어요 😊\n\nClaude한테 "이런 봇 만들어줘" 하면\n→ 코드를 통째로 줘요\n→ Vercel에 붙여넣기만 하면 끝!\n\nClaude = 코드 생성기\nVercel = 무료 배포 서비스\n\n이 두 개만 알면 충분해요 ✨\n\n또 궁금한 별이 있나요? 🌟`
+  },
+  {
+    keys: ['봇','챗봇','만들','제작','어떻게'],
+    answer: `봇 만드는 순서예요 💫\n\n**1단계** — claude.ai에서\n"미용실 예약봇 HTML로 만들어줘" 입력\n\n**2단계** — 코드 복사\nClaude가 준 코드 전체 복사\n\n**3단계** — Vercel 배포\nvercel.com → 새 프로젝트 → 붙여넣기\n\n**4단계** — URL 완성! 🚀\n공유하면 누구나 쓸 수 있어요\n\n또 궁금한 별이 있나요? 🌟`
+  },
+  {
+    keys: ['api','열쇠','연결','anthropic'],
+    answer: `API는 AI한테 일 시키는 열쇠예요 🔑\n\nNOVA 같은 봇을 만들려면 필요해요.\n\n**발급 방법:**\n1️⃣ console.anthropic.com 접속\n2️⃣ 회원가입\n3️⃣ API Keys → Create Key\n4️⃣ sk-ant-... 로 시작하는 키 복사\n\n처음엔 무료 크레딧도 줘요 ✨\n\n또 궁금한 별이 있나요? 🌟`
+  },
+  {
+    keys: ['vercel','배포','url','사이트','올리'],
+    answer: `Vercel은 무료 배포 서비스예요 🌐\n\n코드를 올리면 → URL이 생겨요!\n\n**순서:**\n1️⃣ vercel.com 접속\n2️⃣ GitHub으로 로그인\n3️⃣ 파일 올리기\n4️⃣ Deploy 클릭\n\n그러면 https://xxx.vercel.app\n이런 주소가 생겨요 🚀\n\n또 궁금한 별이 있나요? 🌟`
+  },
+  {
+    keys: ['github','저장소','깃'],
+    answer: `GitHub은 코드 저장소예요 📦\n\n쉽게 말하면 코드용 구글드라이브!\n\n**왜 필요해요?**\nVercel이 GitHub에서 코드를 가져와서\n자동으로 사이트를 만들어줘요.\n\n**시작 방법:**\n1️⃣ github.com 가입\n2️⃣ New repository\n3️⃣ 파일 드래그앤드롭\n\n어렵지 않아요 ✨\n\n또 궁금한 별이 있나요? 🌟`
+  },
+  {
+    keys: ['노션','notion','정리','문서'],
+    answer: `Notion은 디지털 노트북이에요 📒\n\n**AI 탐험가들이 이렇게 써요:**\n✦ 아이디어 정리\n✦ 클라이언트 관리\n✦ 수익 기록\n✦ 학습 내용 저장\n\nnotion.so 에서 무료로 시작할 수 있어요 ✨\n\n또 궁금한 별이 있나요? 🌟`
+  },
+  {
+    keys: ['make','자동화','자동','반복'],
+    answer: `Make.com은 AI의 근육이에요 💪\n\n**이런 것들을 자동화할 수 있어요:**\n✦ 봇에 메시지 오면 → 구글시트에 저장\n✦ 새 예약 들어오면 → 카카오톡 알림\n✦ 매일 자동으로 → 콘텐츠 발행\n\n코딩 없이 드래그앤드롭으로!\nmake.com 무료 플랜으로 시작해보세요 🚀\n\n또 궁금한 별이 있나요? 🌟`
+  },
+  {
+    keys: ['nova','너','당신','누구','소개'],
+    answer: `저는 NOVA예요 ✦\n\nAI 우주를 탐험하는 가이드입니다 🚀\n\nAI를 처음 시작하는 분들이\n길을 잃지 않도록 이정표가 되어드려요.\n\n이 우주(NOVA UNIVERSE)는 계속 커질 거예요.\n별들이 하나씩 켜질 때마다\n새로운 탐험이 시작됩니다 ✨\n\n또 궁금한 별이 있나요? 🌟`
+  }
+];
+
+const DEFAULT_REPLY = `좋은 신호예요 ✨\n\nNOVA가 아직 그 별은 탐험 중이에요 🛸\n\n지금 알려드릴 수 있는 것들:\n✦ AI로 돈 버는 방법\n✦ 봇 만드는 순서\n✦ 코딩 없이 시작하기\n✦ Vercel 배포 방법\n\n아래 버튼을 눌러보거나 다시 질문해주세요!\n\n또 궁금한 별이 있나요? 🌟`;
+
+// ─── 배경 별 ───
+const canvas = document.getElementById('bg');
+const ctx = canvas.getContext('2d');
+let bgStars = [];
+function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+function initBgStars() {
+  bgStars = Array.from({length:150}, () => ({
+    x:Math.random()*canvas.width, y:Math.random()*canvas.height,
+    r:Math.random()*1.5+0.3, o:Math.random()*0.6+0.2, t:Math.random()*Math.PI*2
+  }));
+}
+function drawBg() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  bgStars.forEach(s => {
+    s.t += 0.018;
+    ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+    ctx.fillStyle = `rgba(255,255,255,${s.o*(0.5+0.5*Math.sin(s.t))})`; ctx.fill();
+  });
+  requestAnimationFrame(drawBg);
+}
+resizeCanvas(); initBgStars(); drawBg();
+window.addEventListener('resize', () => { resizeCanvas(); initBgStars(); });
+
+// ─── 화면 전환 ───
+function show(id) {
+  ['pw-screen','universe-screen','bot-screen','panel-screen'].forEach(s =>
+    document.getElementById(s).classList.add('hidden')
+  );
+  document.getElementById(id).classList.remove('hidden');
+}
+
+// ─── 비밀번호 ───
+function tryEnter() {
+  const inp = document.getElementById('pw-input');
+  if (inp.value === PASSWORD) {
+    show('universe-screen');
+    renderStars();
+  } else {
+    inp.classList.add('error');
+    inp.value = '';
+    setTimeout(() => inp.classList.remove('error'), 400);
+  }
+}
+document.getElementById('pw-btn').onclick = tryEnter;
+document.getElementById('pw-input').addEventListener('keydown', e => { if(e.key==='Enter') tryEnter(); });
+
+// ─── 별 렌더링 ───
+let starsRendered = false;
+function renderStars() {
+  if (starsRendered) return;
+  starsRendered = true;
+  const field = document.getElementById('star-field');
+  STARS.forEach(s => {
+    const el = document.createElement('div');
+    el.className = 'star-node';
+    el.style.cssText = `left:${s.pos.x}%;top:${s.pos.y}%;--fd:${s.fd};--fd2:${s.fd2}`;
+    const badge = s.status==='live'
+      ? `<span style="background:rgba(74,222,128,0.15);border:1px solid rgba(74,222,128,0.35);border-radius:5px;padding:1px 5px;font-size:8px;color:rgba(74,222,128,0.8);margin-left:4px">LIVE</span>`
+      : s.status==='soon'
+      ? `<span style="background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.28);border-radius:5px;padding:1px 5px;font-size:8px;color:rgba(251,191,36,0.65);margin-left:4px">SOON</span>`
+      : '';
+    el.innerHTML = `
+      <div class="star-glow">
+        <div class="star-ring" style="width:${s.size+18}px;height:${s.size+18}px;color:${s.color}"></div>
+        <div class="star-ring" style="width:${s.size+18}px;height:${s.size+18}px;color:${s.color}"></div>
+        <div class="star-core" style="width:${s.size}px;height:${s.size}px;background:radial-gradient(circle,${s.color}70,${s.color}25);border:1px solid ${s.color}55;box-shadow:0 0 18px ${s.glow};color:${s.color};font-size:${Math.round(s.size*0.38)}px">${s.icon}</div>
+      </div>
+      <div class="star-label" style="color:${s.color}">${s.label}${badge}</div>
+      <div class="star-sub" style="color:${s.color}">${s.sub}</div>`;
+    el.addEventListener('click', () => onStarClick(s));
+    field.appendChild(el);
+  });
+}
+
+function onStarClick(s) {
+  if (s.action === 'bot') {
+    show('bot-screen');
+    if (!document.getElementById('messages').children.length) {
+      addMsg('bot', '새로운 별이 탄생했어요 ✨\n\nAI 세계에 오신 걸 환영합니다.\n저는 NOVA — 당신의 AI 탐험 가이드예요.\n\n궁금한 것 뭐든 물어보세요 🚀');
+    }
+  } else {
+    document.getElementById('p-icon').textContent = s.icon;
+    document.getElementById('p-name').textContent = s.label;
+    document.getElementById('p-desc').textContent = s.desc;
+    document.getElementById('p-tags').innerHTML = s.tags.map(t=>`<span class="panel-tag">${t}</span>`).join('');
+    const btn = document.getElementById('p-btn');
+    btn.disabled = s.status === 'mystery';
+    btn.textContent = s.status==='mystery' ? '🌌 계속 지켜봐주세요' : '🔔 오픈 알림 받기';
+    btn.onclick = () => {
+      if (s.status === 'soon') alert('오픈되면 알려드릴게요!\n인스타/스레드를 팔로우해주세요 🚀');
+    };
+    show('panel-screen');
+    document.getElementById('universe-screen').classList.remove('hidden');
+  }
+}
+
+document.getElementById('back-btn').onclick = () => show('universe-screen');
+document.getElementById('panel-close').onclick = () => document.getElementById('panel-screen').classList.add('hidden');
+
+// ─── 키워드 답변 ───
+function getReply(text) {
+  const t = text.toLowerCase();
+  for (const r of REPLIES) {
+    if (r.keys.some(k => t.includes(k))) return r.answer;
+  }
+  return DEFAULT_REPLY;
+}
+
+// ─── 채팅 ───
+function addMsg(role, text) {
+  const msgs = document.getElementById('messages');
+  const wrap = document.createElement('div');
+  wrap.className = `msg-wrap ${role==='user'?'user':''}`;
+  const lines = text.split('\n').map(line =>
+    line.split(/\*\*(.*?)\*\*/g).map((p,i) =>
+      i%2===1 ? `<strong style="color:#c4b5fd">${p}</strong>` : p
+    ).join('')
+  ).join('<br>');
+  wrap.innerHTML = role==='bot'
+    ? `<div class="msg-avatar">✦</div><div class="msg-bubble bot">${lines}</div>`
+    : `<div class="msg-bubble user">${lines}</div>`;
+  msgs.appendChild(wrap);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function addTyping() {
+  const msgs = document.getElementById('messages');
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-wrap'; wrap.id = 'typing-wrap';
+  wrap.innerHTML = `<div class="msg-avatar">✦</div><div class="msg-bubble bot"><div class="typing-dots"><span></span><span></span><span></span></div></div>`;
+  msgs.appendChild(wrap);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function sendMsg(text) {
+  const input = document.getElementById('chat-input');
+  const msg = text || input.value.trim();
+  if (!msg) return;
+  input.value = '';
+  updateSendBtn();
+  addMsg('user', msg);
+  addTyping();
+  // 타이핑 효과 (0.8~1.4초)
+  setTimeout(() => {
+    document.getElementById('typing-wrap')?.remove();
+    addMsg('bot', getReply(msg));
+  }, 800 + Math.random() * 600);
+}
+
+function updateSendBtn() {
+  const btn = document.getElementById('send-btn');
+  const val = document.getElementById('chat-input').value.trim();
+  btn.disabled = !val;
+  btn.textContent = val ? '🚀' : '✦';
+}
+document.getElementById('send-btn').onclick = () => sendMsg();
+document.getElementById('chat-input').addEventListener('input', updateSendBtn);
+document.getElementById('chat-input').addEventListener('keydown', e => {
+  if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
+});
+</script>
+</body>
 </html>
