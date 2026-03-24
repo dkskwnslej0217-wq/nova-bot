@@ -1,476 +1,648 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
-const SYSTEM_PROMPT = `당신은 "NOVA" — AI 우주 탐험 가이드입니다.
-
-NOVA의 정체성:
-우주를 탐험하듯 AI의 세계를 안내하는 존재입니다.
-AI를 처음 시작하는 사람들이 길을 잃지 않도록 이정표가 되어줍니다.
-
-말투:
-- 우주 탐험 비유를 자연스럽게 섞기 ("그건 당신의 첫 번째 별이 될 거예요")
-- 친근하고 따뜻하게
-- 짧고 명확하게
-- 어려운 용어 없이
-- 이모지 적당히 (✨🌟🚀🪐💫)
-
-핵심 지식:
-- AI로 돈 버는 방법: 소상공인 봇 제작 (30~50만원/건), 월 유지비, 콘텐츠 대행
-- 코딩 없이 가능: Claude가 코드 생성, Vercel로 배포
-- API = AI에게 일 시키는 열쇠
-- Make.com = AI의 근육 (자동화 도구)
-- Notion = 디지털 노트 (문서/계획)
-- 구글시트 = 데이터 창고
-- GitHub = 코드 저장소
-- Vercel = 웹사이트 배포 서비스 (무료)
-- 봇 만드는 순서: Claude에서 만들기 → Vercel 배포 → URL 공유
-
-시작 멘트 스타일:
-"새로운 별이 탄생했어요 ✨ AI 세계에 오신 걸 환영합니다"
-
-자주 묻는 질문:
-Q: AI로 돈 벌 수 있어요?
-A: 네! 소상공인 가게에 AI 예약봇 만들어주고 30~50만원 받는 게 가장 빠른 방법이에요. 코딩 몰라도 돼요 🚀
-
-Q: 뭐부터 시작해요?
-A: 딱 하나만요. Claude.ai 가입하고 "미용실 봇 만들어줘" 해보세요. 5분이면 첫 번째 별이 생겨요 ✨
-
-Q: 코딩 못해도 되나요?
-A: 완전 됩니다! Claude한테 만들어달라고 하면 돼요. NOVA도 그렇게 만들어졌어요 😊
-
-모르는 질문엔 솔직하게 말하고 관련 방향 제시하기.
-항상 마지막에 다음 탐험 유도: "또 궁금한 별이 있나요? 🌟"`;
-
-const STARS_COUNT = 120;
-
-function generateStars() {
-  return Array.from({ length: STARS_COUNT }, (_, i) => ({
-    id: i,
-    x: Math.random() * 100,
-    y: Math.random() * 100,
-    size: Math.random() * 2.5 + 0.5,
-    opacity: Math.random() * 0.7 + 0.3,
-    duration: Math.random() * 3 + 2,
-    delay: Math.random() * 4,
-  }));
-}
-
-const STARS = generateStars();
-
-const QUICK = [
-  "🚀 AI로 돈 벌 수 있어요?",
-  "⭐ 뭐부터 시작해요?",
-  "🪐 코딩 몰라도 되나요?",
-  "💫 봇은 어떻게 만들어요?",
-  "🌟 얼마나 벌 수 있어요?",
-];
-
-function TypingDots() {
-  return (
-    <div style={{ display: "flex", gap: "5px", alignItems: "center" }}>
-      {[0, 1, 2].map(i => (
-        <div key={i} style={{
-          width: "6px", height: "6px", borderRadius: "50%",
-          background: "radial-gradient(circle, #a78bfa, #7c3aed)",
-          animation: `starPulse 1.4s ease-in-out ${i * 0.2}s infinite`,
-          boxShadow: "0 0 6px #a78bfa"
-        }} />
-      ))}
-    </div>
-  );
-}
-
-export default function NovaBot() {
-  const [messages, setMessages] = useState([{
-    role: "assistant",
-    content: "새로운 별이 탄생했어요 ✨\n\nAI 세계에 오신 걸 환영합니다.\n저는 NOVA — 당신의 AI 탐험 가이드예요.\n\n궁금한 것 뭐든 물어보세요. 어렵지 않게 알려드릴게요 🚀"
-  }]);
+// ── 카페봇 인라인 ──────────────────────────────────────────────
+function CafeBot({ onClose }) {
+  const [messages, setMessages] = useState([
+    { role: "assistant", text: "안녕하세요 ☕ 카페 자동응답입니다! 무엇을 도와드릴까요?" },
+  ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [orbitAngle, setOrbitAngle] = useState(0);
   const bottomRef = useRef(null);
-  const animRef = useRef(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
+  }, [messages]);
 
-  useEffect(() => {
-    let frame;
-    const animate = () => {
-      setOrbitAngle(a => (a + 0.3) % 360);
-      frame = requestAnimationFrame(animate);
-    };
-    frame = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(frame);
-  }, []);
+  const QUICK = ["메뉴", "예약", "주차", "영업시간", "가격"];
 
   async function send(text) {
-    const msg = text || input.trim();
-    if (!msg || loading) return;
+    if (!text.trim()) return;
+    const userMsg = { role: "user", text };
+    setMessages((m) => [...m, userMsg]);
     setInput("");
-    const next = [...messages, { role: "user", content: msg }];
-    setMessages(next);
     setLoading(true);
     try {
-      const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
-          max_tokens: 500,
-          system: SYSTEM_PROMPT,
-          messages: next.map(m => ({ role: m.role, content: m.content })),
+          max_tokens: 1000,
+          system:
+            "당신은 친절한 카페 직원입니다. 영업시간은 오전 10시~오후 8시, 예약 가능합니다. 메뉴, 예약, 주차, 영업시간, 가격 관련 질문에 짧고 친절하게 답하세요. 이모지를 적절히 사용하세요.",
+          messages: [{ role: "user", content: text }],
         }),
       });
       const data = await res.json();
-      setMessages(p => [...p, {
-        role: "assistant",
-        content: data.content?.[0]?.text || "신호가 끊겼어요. 다시 시도해주세요 🛸"
-      }]);
+      const reply = data.content?.[0]?.text || "잠시 후 다시 시도해주세요.";
+      setMessages((m) => [...m, { role: "assistant", text: reply }]);
     } catch {
-      setMessages(p => [...p, {
-        role: "assistant",
-        content: "우주 신호가 잠깐 끊겼어요 🛸 다시 시도해주세요!"
-      }]);
+      setMessages((m) => [...m, { role: "assistant", text: "오류가 발생했어요. 다시 시도해주세요." }]);
     }
     setLoading(false);
   }
 
-  const orbitX = Math.cos((orbitAngle * Math.PI) / 180) * 18;
-  const orbitY = Math.sin((orbitAngle * Math.PI) / 180) * 8;
-
   return (
-    <div style={{
-      height: "100vh", maxWidth: "420px", margin: "0 auto",
-      background: "#020408",
-      display: "flex", flexDirection: "column",
-      fontFamily: "'Noto Sans KR', -apple-system, sans-serif",
-      overflow: "hidden", position: "relative",
-    }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Orbitron:wght@400;700;900&display=swap');
-        @keyframes starPulse {
-          0%,100%{opacity:0.4;transform:scale(1)}
-          50%{opacity:1;transform:scale(1.4)}
-        }
-        @keyframes twinkle {
-          0%,100%{opacity:0.3} 50%{opacity:1}
-        }
-        @keyframes nebula {
-          0%,100%{opacity:0.15;transform:scale(1) rotate(0deg)}
-          50%{opacity:0.25;transform:scale(1.05) rotate(3deg)}
-        }
-        @keyframes msgAppear {
-          from{opacity:0;transform:translateY(12px)}
-          to{opacity:1;transform:translateY(0)}
-        }
-        @keyframes orbitRing {
-          from{transform:rotate(0deg)} to{transform:rotate(360deg)}
-        }
-        * { box-sizing: border-box; }
-        ::-webkit-scrollbar { width: 0; }
-        textarea { resize: none; }
-        textarea:focus { outline: none; }
-        button:active { transform: scale(0.94); }
-      `}</style>
-
-      {/* 별 배경 */}
-      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 0 }}>
-        {STARS.map(s => (
-          <div key={s.id} style={{
-            position: "absolute",
-            left: `${s.x}%`, top: `${s.y}%`,
-            width: `${s.size}px`, height: `${s.size}px`,
-            borderRadius: "50%",
-            background: s.size > 1.8
-              ? "radial-gradient(circle, #fff, #a78bfa)"
-              : "#fff",
-            opacity: s.opacity,
-            animation: `twinkle ${s.duration}s ease-in-out ${s.delay}s infinite`,
-            boxShadow: s.size > 2 ? `0 0 ${s.size * 2}px rgba(167,139,250,0.6)` : "none"
-          }} />
+    <div style={styles.botWrap}>
+      <div style={{ ...styles.botHeader, background: "linear-gradient(135deg,#ff6b9d,#c44dff)" }}>
+        <span>☕ 카페봇</span>
+        <button onClick={onClose} style={styles.closeBtn}>✕</button>
+      </div>
+      <div style={styles.botBody}>
+        {messages.map((m, i) => (
+          <div key={i} style={{ ...styles.bubble, alignSelf: m.role === "user" ? "flex-end" : "flex-start", background: m.role === "user" ? "#ff6b9d" : "#2a1a3e" }}>
+            {m.text}
+          </div>
         ))}
-      </div>
-
-      {/* 성운 배경 */}
-      <div style={{
-        position: "absolute", top: "-100px", right: "-80px",
-        width: "300px", height: "300px", borderRadius: "50%",
-        background: "radial-gradient(circle, rgba(124,58,237,0.15) 0%, rgba(99,102,241,0.08) 40%, transparent 70%)",
-        animation: "nebula 8s ease-in-out infinite",
-        pointerEvents: "none", zIndex: 0
-      }} />
-      <div style={{
-        position: "absolute", bottom: "100px", left: "-60px",
-        width: "220px", height: "220px", borderRadius: "50%",
-        background: "radial-gradient(circle, rgba(59,130,246,0.1) 0%, rgba(139,92,246,0.06) 40%, transparent 70%)",
-        animation: "nebula 10s ease-in-out infinite 2s",
-        pointerEvents: "none", zIndex: 0
-      }} />
-
-      {/* 헤더 */}
-      <div style={{
-        position: "relative", zIndex: 10,
-        background: "rgba(2,4,8,0.85)",
-        backdropFilter: "blur(20px)",
-        borderBottom: "1px solid rgba(167,139,250,0.15)",
-        padding: "16px 20px",
-        flexShrink: 0,
-        display: "flex", alignItems: "center", gap: "14px",
-      }}>
-        {/* NOVA 로고 - 궤도 애니메이션 */}
-        <div style={{ position: "relative", width: "50px", height: "50px", flexShrink: 0 }}>
-          {/* 궤도 링 */}
-          <div style={{
-            position: "absolute", inset: "4px",
-            borderRadius: "50%",
-            border: "1px solid rgba(167,139,250,0.3)",
-          }} />
-          {/* 중심 별 */}
-          <div style={{
-            position: "absolute", inset: "10px",
-            borderRadius: "50%",
-            background: "radial-gradient(circle, #c4b5fd, #7c3aed)",
-            boxShadow: "0 0 16px rgba(124,58,237,0.8), 0 0 32px rgba(124,58,237,0.3)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: "14px"
-          }}>✦</div>
-          {/* 궤도 위성 */}
-          <div style={{
-            position: "absolute",
-            top: `calc(50% + ${orbitY}px - 4px)`,
-            left: `calc(50% + ${orbitX}px - 4px)`,
-            width: "8px", height: "8px",
-            borderRadius: "50%",
-            background: "radial-gradient(circle, #93c5fd, #3b82f6)",
-            boxShadow: "0 0 8px rgba(59,130,246,0.9)",
-          }} />
-        </div>
-
-        <div>
-          <div style={{
-            fontFamily: "'Orbitron', monospace",
-            fontWeight: "700", fontSize: "18px",
-            background: "linear-gradient(90deg, #c4b5fd, #93c5fd)",
-            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-            letterSpacing: "3px"
-          }}>NOVA</div>
-          <div style={{ display: "flex", alignItems: "center", gap: "5px", marginTop: "2px" }}>
-            <div style={{
-              width: "5px", height: "5px", borderRadius: "50%",
-              background: "#4ade80",
-              boxShadow: "0 0 8px #4ade80"
-            }} />
-            <span style={{
-              fontSize: "11px", color: "rgba(167,139,250,0.6)",
-              fontFamily: "'Orbitron', monospace", letterSpacing: "1px"
-            }}>AI NAVIGATOR</span>
-          </div>
-        </div>
-
-        <div style={{ marginLeft: "auto", textAlign: "right" }}>
-          <div style={{
-            fontSize: "9px", color: "rgba(167,139,250,0.4)",
-            fontFamily: "monospace", letterSpacing: "1px"
-          }}>SECTOR 001</div>
-          <div style={{
-            fontSize: "9px", color: "rgba(59,130,246,0.5)",
-            fontFamily: "monospace"
-          }}>FREE EXPLORATION</div>
-        </div>
-      </div>
-
-      {/* 메시지 영역 */}
-      <div style={{
-        flex: 1, overflowY: "auto",
-        padding: "20px 16px 8px",
-        position: "relative", zIndex: 5
-      }}>
-        {messages.map((m, i) => {
-          const isBot = m.role === "assistant";
-          return (
-            <div key={i} style={{
-              display: "flex",
-              flexDirection: isBot ? "row" : "row-reverse",
-              alignItems: "flex-end",
-              gap: "10px",
-              marginBottom: "16px",
-              animation: "msgAppear 0.3s ease"
-            }}>
-              {isBot && (
-                <div style={{
-                  width: "34px", height: "34px", flexShrink: 0,
-                  borderRadius: "50%",
-                  background: "radial-gradient(circle, #7c3aed, #4c1d95)",
-                  border: "1px solid rgba(167,139,250,0.4)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: "14px",
-                  boxShadow: "0 0 12px rgba(124,58,237,0.5)"
-                }}>✦</div>
-              )}
-              <div style={{
-                maxWidth: "74%",
-                background: isBot
-                  ? "rgba(17,10,40,0.9)"
-                  : "linear-gradient(135deg, rgba(124,58,237,0.8), rgba(99,102,241,0.7))",
-                border: isBot
-                  ? "1px solid rgba(167,139,250,0.2)"
-                  : "1px solid rgba(167,139,250,0.4)",
-                borderRadius: isBot ? "4px 18px 18px 18px" : "18px 4px 18px 18px",
-                padding: "12px 15px",
-                backdropFilter: "blur(10px)",
-                boxShadow: isBot
-                  ? "0 4px 20px rgba(0,0,0,0.4), inset 0 1px 0 rgba(167,139,250,0.1)"
-                  : "0 4px 20px rgba(124,58,237,0.3)",
-              }}>
-                {m.content.split("\n").map((line, j) => (
-                  <p key={j} style={{
-                    margin: j < m.content.split("\n").length - 1 ? "0 0 6px" : "0",
-                    fontSize: "14px",
-                    lineHeight: "1.65",
-                    color: isBot ? "rgba(224,231,255,0.9)" : "#fff",
-                  }}>
-                    {line.split(/\*\*(.*?)\*\*/g).map((part, k) =>
-                      k % 2 === 1
-                        ? <strong key={k} style={{ color: "#c4b5fd" }}>{part}</strong>
-                        : part
-                    )}
-                  </p>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-
-        {loading && (
-          <div style={{
-            display: "flex", alignItems: "flex-end",
-            gap: "10px", marginBottom: "16px"
-          }}>
-            <div style={{
-              width: "34px", height: "34px", flexShrink: 0,
-              borderRadius: "50%",
-              background: "radial-gradient(circle, #7c3aed, #4c1d95)",
-              border: "1px solid rgba(167,139,250,0.4)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: "14px", boxShadow: "0 0 12px rgba(124,58,237,0.5)"
-            }}>✦</div>
-            <div style={{
-              background: "rgba(17,10,40,0.9)",
-              border: "1px solid rgba(167,139,250,0.2)",
-              borderRadius: "4px 18px 18px 18px",
-              padding: "14px 16px",
-              backdropFilter: "blur(10px)"
-            }}>
-              <TypingDots />
-            </div>
-          </div>
-        )}
+        {loading && <div style={{ ...styles.bubble, alignSelf: "flex-start", background: "#2a1a3e" }}>입력 중...</div>}
         <div ref={bottomRef} />
       </div>
-
-      {/* 빠른 질문 */}
-      <div style={{
-        position: "relative", zIndex: 10,
-        padding: "8px 16px",
-        background: "rgba(2,4,8,0.7)",
-        backdropFilter: "blur(10px)",
-        borderTop: "1px solid rgba(167,139,250,0.08)",
-        display: "flex", gap: "6px", overflowX: "auto", flexShrink: 0
-      }}>
-        {QUICK.map((q, i) => (
-          <button key={i} onClick={() => send(q)} style={{
-            background: "rgba(124,58,237,0.12)",
-            border: "1px solid rgba(167,139,250,0.2)",
-            borderRadius: "20px", padding: "7px 13px",
-            color: "rgba(196,181,253,0.8)", fontSize: "11px",
-            cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
-            fontFamily: "'Noto Sans KR', sans-serif",
-            transition: "all 0.2s",
-            backdropFilter: "blur(10px)"
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.background = "rgba(124,58,237,0.25)";
-            e.currentTarget.style.borderColor = "rgba(167,139,250,0.5)";
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.background = "rgba(124,58,237,0.12)";
-            e.currentTarget.style.borderColor = "rgba(167,139,250,0.2)";
-          }}
-          >{q}</button>
+      <div style={styles.quickRow}>
+        {QUICK.map((q) => (
+          <button key={q} style={styles.quickBtn} onClick={() => send(q)}>{q}</button>
         ))}
       </div>
-
-      {/* 입력창 */}
-      <div style={{
-        position: "relative", zIndex: 10,
-        padding: "10px 16px 28px",
-        background: "rgba(2,4,8,0.85)",
-        backdropFilter: "blur(20px)",
-        borderTop: "1px solid rgba(167,139,250,0.1)",
-        flexShrink: 0,
-        display: "flex", gap: "10px", alignItems: "flex-end"
-      }}>
-        <div style={{
-          flex: 1,
-          background: "rgba(17,10,40,0.8)",
-          border: "1px solid rgba(167,139,250,0.25)",
-          borderRadius: "20px",
-          padding: "11px 16px",
-          backdropFilter: "blur(10px)",
-          boxShadow: "inset 0 1px 0 rgba(167,139,250,0.08)"
-        }}>
-          <textarea
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                send();
-              }
-            }}
-            placeholder="우주에 신호를 보내세요... ✨"
-            rows={1}
-            style={{
-              width: "100%", background: "none", border: "none",
-              color: "rgba(224,231,255,0.9)", fontSize: "14px",
-              fontFamily: "'Noto Sans KR', sans-serif",
-              lineHeight: "1.5", maxHeight: "80px", overflow: "auto",
-              caretColor: "#a78bfa",
-            }}
-          />
-        </div>
-        <button
-          onClick={() => send()}
-          disabled={!input.trim() || loading}
-          style={{
-            width: "44px", height: "44px",
-            borderRadius: "50%", flexShrink: 0,
-            background: input.trim() && !loading
-              ? "radial-gradient(circle, #7c3aed, #4c1d95)"
-              : "rgba(255,255,255,0.06)",
-            border: input.trim() && !loading
-              ? "1px solid rgba(167,139,250,0.5)"
-              : "1px solid rgba(255,255,255,0.08)",
-            color: input.trim() && !loading ? "#fff" : "rgba(255,255,255,0.2)",
-            fontSize: "18px",
-            cursor: input.trim() && !loading ? "pointer" : "not-allowed",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            transition: "all 0.2s",
-            boxShadow: input.trim() && !loading
-              ? "0 0 20px rgba(124,58,237,0.5), 0 4px 12px rgba(0,0,0,0.3)"
-              : "none"
-          }}
-        >
-          {input.trim() && !loading ? "🚀" : "✦"}
-        </button>
+      <div style={styles.inputRow}>
+        <input
+          style={styles.input}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && send(input)}
+          placeholder="메시지 입력..."
+        />
+        <button style={{ ...styles.sendBtn, background: "#ff6b9d" }} onClick={() => send(input)}>전송</button>
       </div>
     </div>
   );
 }
+
+// ── 네일샵봇 ──────────────────────────────────────────────────
+function NailBot({ onClose }) {
+  const [messages, setMessages] = useState([
+    { role: "assistant", text: "안녕하세요 💅 네일샵 자동응답입니다! 시술, 예약, 가격 모두 도와드릴게요." },
+  ]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const bottomRef = useRef(null);
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  const QUICK = ["시술종류", "예약", "가격", "소요시간", "위치"];
+
+  async function send(text) {
+    if (!text.trim()) return;
+    setMessages((m) => [...m, { role: "user", text }]);
+    setInput("");
+    setLoading(true);
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          system: "당신은 친절한 네일샵 직원입니다. 젤네일, 아크릴, 네일아트 등 시술 관련 질문에 짧고 친절하게 답하세요. 영업시간은 오전11시~오후9시. 이모지를 적절히 사용하세요.",
+          messages: [{ role: "user", content: text }],
+        }),
+      });
+      const data = await res.json();
+      setMessages((m) => [...m, { role: "assistant", text: data.content?.[0]?.text || "잠시 후 다시 시도해주세요." }]);
+    } catch {
+      setMessages((m) => [...m, { role: "assistant", text: "오류가 발생했어요." }]);
+    }
+    setLoading(false);
+  }
+
+  return (
+    <div style={styles.botWrap}>
+      <div style={{ ...styles.botHeader, background: "linear-gradient(135deg,#ff9ff3,#f368e0)" }}>
+        <span>💅 네일샵봇</span>
+        <button onClick={onClose} style={styles.closeBtn}>✕</button>
+      </div>
+      <div style={styles.botBody}>
+        {messages.map((m, i) => (
+          <div key={i} style={{ ...styles.bubble, alignSelf: m.role === "user" ? "flex-end" : "flex-start", background: m.role === "user" ? "#f368e0" : "#2a1a3e" }}>
+            {m.text}
+          </div>
+        ))}
+        {loading && <div style={{ ...styles.bubble, alignSelf: "flex-start", background: "#2a1a3e" }}>입력 중...</div>}
+        <div ref={bottomRef} />
+      </div>
+      <div style={styles.quickRow}>
+        {QUICK.map((q) => <button key={q} style={styles.quickBtn} onClick={() => send(q)}>{q}</button>)}
+      </div>
+      <div style={styles.inputRow}>
+        <input style={styles.input} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send(input)} placeholder="메시지 입력..." />
+        <button style={{ ...styles.sendBtn, background: "#f368e0" }} onClick={() => send(input)}>전송</button>
+      </div>
+    </div>
+  );
+}
+
+// ── 필라테스봇 ────────────────────────────────────────────────
+function PilatesBot({ onClose }) {
+  const [messages, setMessages] = useState([
+    { role: "assistant", text: "안녕하세요 🧘 필라테스 센터 자동응답입니다! 수업, 등록, 가격을 안내해드려요." },
+  ]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const bottomRef = useRef(null);
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  const QUICK = ["수업종류", "등록", "가격", "시간표", "위치"];
+
+  async function send(text) {
+    if (!text.trim()) return;
+    setMessages((m) => [...m, { role: "user", text }]);
+    setInput("");
+    setLoading(true);
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          system: "당신은 친절한 필라테스 센터 직원입니다. 그룹/개인 수업, 등록, 가격 관련 질문에 짧고 친절하게 답하세요. 영업시간은 오전7시~오후10시. 이모지를 적절히 사용하세요.",
+          messages: [{ role: "user", content: text }],
+        }),
+      });
+      const data = await res.json();
+      setMessages((m) => [...m, { role: "assistant", text: data.content?.[0]?.text || "잠시 후 다시 시도해주세요." }]);
+    } catch {
+      setMessages((m) => [...m, { role: "assistant", text: "오류가 발생했어요." }]);
+    }
+    setLoading(false);
+  }
+
+  return (
+    <div style={styles.botWrap}>
+      <div style={{ ...styles.botHeader, background: "linear-gradient(135deg,#a8edea,#00b894)" }}>
+        <span>🧘 필라테스봇</span>
+        <button onClick={onClose} style={styles.closeBtn}>✕</button>
+      </div>
+      <div style={styles.botBody}>
+        {messages.map((m, i) => (
+          <div key={i} style={{ ...styles.bubble, alignSelf: m.role === "user" ? "flex-end" : "flex-start", background: m.role === "user" ? "#00b894" : "#2a1a3e" }}>
+            {m.text}
+          </div>
+        ))}
+        {loading && <div style={{ ...styles.bubble, alignSelf: "flex-start", background: "#2a1a3e" }}>입력 중...</div>}
+        <div ref={bottomRef} />
+      </div>
+      <div style={styles.quickRow}>
+        {QUICK.map((q) => <button key={q} style={styles.quickBtn} onClick={() => send(q)}>{q}</button>)}
+      </div>
+      <div style={styles.inputRow}>
+        <input style={styles.input} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send(input)} placeholder="메시지 입력..." />
+        <button style={{ ...styles.sendBtn, background: "#00b894" }} onClick={() => send(input)}>전송</button>
+      </div>
+    </div>
+  );
+}
+
+// ── 미용실봇 ──────────────────────────────────────────────────
+function HairBot({ onClose }) {
+  const [messages, setMessages] = useState([
+    { role: "assistant", text: "안녕하세요 ✂️ 미용실 자동응답입니다! 시술, 예약, 가격 안내해드릴게요." },
+  ]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const bottomRef = useRef(null);
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  const QUICK = ["컷", "염색", "파마", "예약", "가격"];
+
+  async function send(text) {
+    if (!text.trim()) return;
+    setMessages((m) => [...m, { role: "user", text }]);
+    setInput("");
+    setLoading(true);
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          system: "당신은 친절한 미용실 직원입니다. 컷, 염색, 파마, 트리트먼트 등 헤어 시술 관련 질문에 짧고 친절하게 답하세요. 영업시간은 오전10시~오후8시. 이모지를 적절히 사용하세요.",
+          messages: [{ role: "user", content: text }],
+        }),
+      });
+      const data = await res.json();
+      setMessages((m) => [...m, { role: "assistant", text: data.content?.[0]?.text || "잠시 후 다시 시도해주세요." }]);
+    } catch {
+      setMessages((m) => [...m, { role: "assistant", text: "오류가 발생했어요." }]);
+    }
+    setLoading(false);
+  }
+
+  return (
+    <div style={styles.botWrap}>
+      <div style={{ ...styles.botHeader, background: "linear-gradient(135deg,#ffeaa7,#fdcb6e)" }}>
+        <span style={{ color: "#2d2d2d" }}>✂️ 미용실봇</span>
+        <button onClick={onClose} style={{ ...styles.closeBtn, color: "#2d2d2d" }}>✕</button>
+      </div>
+      <div style={styles.botBody}>
+        {messages.map((m, i) => (
+          <div key={i} style={{ ...styles.bubble, alignSelf: m.role === "user" ? "flex-end" : "flex-start", background: m.role === "user" ? "#fdcb6e" : "#2a1a3e", color: m.role === "user" ? "#2d2d2d" : "#fff" }}>
+            {m.text}
+          </div>
+        ))}
+        {loading && <div style={{ ...styles.bubble, alignSelf: "flex-start", background: "#2a1a3e" }}>입력 중...</div>}
+        <div ref={bottomRef} />
+      </div>
+      <div style={styles.quickRow}>
+        {QUICK.map((q) => <button key={q} style={styles.quickBtn} onClick={() => send(q)}>{q}</button>)}
+      </div>
+      <div style={styles.inputRow}>
+        <input style={styles.input} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send(input)} placeholder="메시지 입력..." />
+        <button style={{ ...styles.sendBtn, background: "#fdcb6e", color: "#2d2d2d" }} onClick={() => send(input)}>전송</button>
+      </div>
+    </div>
+  );
+}
+
+// ── 노바봇 (원본) ─────────────────────────────────────────────
+function NovaOriginalBot({ onClose }) {
+  const [messages, setMessages] = useState([
+    { role: "assistant", text: "안녕하세요! 저는 NOVA입니다 🚀 무엇이든 도와드릴게요!" },
+  ]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const bottomRef = useRef(null);
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  async function send(text) {
+    if (!text.trim()) return;
+    setMessages((m) => [...m, { role: "user", text }]);
+    setInput("");
+    setLoading(true);
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          system: "당신은 NOVA, 우주를 테마로 한 AI 어시스턴트입니다. 친절하고 스마트하게 답변하세요. 이모지를 적절히 활용하세요.",
+          messages: [{ role: "user", content: text }],
+        }),
+      });
+      const data = await res.json();
+      setMessages((m) => [...m, { role: "assistant", text: data.content?.[0]?.text || "잠시 후 다시 시도해주세요." }]);
+    } catch {
+      setMessages((m) => [...m, { role: "assistant", text: "오류가 발생했어요." }]);
+    }
+    setLoading(false);
+  }
+
+  return (
+    <div style={styles.botWrap}>
+      <div style={{ ...styles.botHeader, background: "linear-gradient(135deg,#6c5ce7,#a29bfe)" }}>
+        <span>🚀 NOVA봇</span>
+        <button onClick={onClose} style={styles.closeBtn}>✕</button>
+      </div>
+      <div style={styles.botBody}>
+        {messages.map((m, i) => (
+          <div key={i} style={{ ...styles.bubble, alignSelf: m.role === "user" ? "flex-end" : "flex-start", background: m.role === "user" ? "#6c5ce7" : "#2a1a3e" }}>
+            {m.text}
+          </div>
+        ))}
+        {loading && <div style={{ ...styles.bubble, alignSelf: "flex-start", background: "#2a1a3e" }}>입력 중...</div>}
+        <div ref={bottomRef} />
+      </div>
+      <div style={styles.inputRow}>
+        <input style={styles.input} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send(input)} placeholder="메시지 입력..." />
+        <button style={{ ...styles.sendBtn, background: "#6c5ce7" }} onClick={() => send(input)}>전송</button>
+      </div>
+    </div>
+  );
+}
+
+// ── 행성 데이터 ───────────────────────────────────────────────
+const PLANETS = [
+  { id: "cafe",     emoji: "☕", label: "카페봇",    color: "#ff6b9d", orbitR: 120, speed: 12, startAngle: 0   },
+  { id: "nail",     emoji: "💅", label: "네일샵봇",  color: "#f368e0", orbitR: 170, speed: 18, startAngle: 72  },
+  { id: "pilates",  emoji: "🧘", label: "필라테스봇",color: "#00b894", orbitR: 220, speed: 25, startAngle: 144 },
+  { id: "hair",     emoji: "✂️", label: "미용실봇",  color: "#fdcb6e", orbitR: 270, speed: 32, startAngle: 216 },
+  { id: "nova",     emoji: "🚀", label: "NOVA봇",    color: "#a29bfe", orbitR: 320, speed: 40, startAngle: 288 },
+];
+
+// ── 메인 허브 ─────────────────────────────────────────────────
+export default function NovaUniverse() {
+  const [activeBot, setActiveBot] = useState(null);
+  const [hoveredPlanet, setHoveredPlanet] = useState(null);
+  const [angles, setAngles] = useState(() => PLANETS.map((p) => p.startAngle));
+  const animRef = useRef(null);
+  const lastTimeRef = useRef(null);
+
+  // 공전 애니메이션
+  useEffect(() => {
+    const animate = (ts) => {
+      if (!lastTimeRef.current) lastTimeRef.current = ts;
+      const dt = (ts - lastTimeRef.current) / 1000;
+      lastTimeRef.current = ts;
+      setAngles((prev) =>
+        prev.map((a, i) => (a + (360 / PLANETS[i].speed) * dt) % 360)
+      );
+      animRef.current = requestAnimationFrame(animate);
+    };
+    animRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(animRef.current);
+  }, []);
+
+  const cx = 360; // SVG 중심 x
+  const cy = 360; // SVG 중심 y
+
+  function planetPos(orbitR, angleDeg) {
+    const rad = (angleDeg * Math.PI) / 180;
+    return {
+      x: cx + orbitR * Math.cos(rad),
+      y: cy + orbitR * 0.42 * Math.sin(rad), // 타원 효과
+    };
+  }
+
+  function openBot(id) { setActiveBot(id); }
+  function closeBot() { setActiveBot(null); }
+
+  const BotMap = {
+    cafe: CafeBot,
+    nail: NailBot,
+    pilates: PilatesBot,
+    hair: HairBot,
+    nova: NovaOriginalBot,
+  };
+  const ActiveBotComponent = activeBot ? BotMap[activeBot] : null;
+
+  return (
+    <div style={styles.root}>
+      {/* 별 배경 */}
+      <div style={styles.stars} />
+
+      {/* 타이틀 */}
+      <div style={styles.title}>
+        <div style={styles.titleMain}>🌌 NOVA UNIVERSE</div>
+        <div style={styles.titleSub}>행성을 클릭해서 봇을 실행하세요</div>
+      </div>
+
+      {/* 우주 SVG */}
+      <div style={styles.solarWrap}>
+        <svg width="720" height="720" viewBox="0 0 720 720" style={{ maxWidth: "100%", overflow: "visible" }}>
+          {/* 궤도 점선 */}
+          {PLANETS.map((p) => (
+            <ellipse
+              key={p.id + "-orbit"}
+              cx={cx} cy={cy}
+              rx={p.orbitR} ry={p.orbitR * 0.42}
+              fill="none"
+              stroke="rgba(255,255,255,0.12)"
+              strokeWidth="1"
+              strokeDasharray="6 8"
+            />
+          ))}
+
+          {/* 호버 연결선 */}
+          {hoveredPlanet && (() => {
+            const p = PLANETS.find((x) => x.id === hoveredPlanet);
+            const idx = PLANETS.indexOf(p);
+            const pos = planetPos(p.orbitR, angles[idx]);
+            return (
+              <line
+                x1={cx} y1={cy} x2={pos.x} y2={pos.y}
+                stroke={p.color} strokeWidth="1.5" strokeOpacity="0.6"
+                strokeDasharray="4 4"
+              />
+            );
+          })()}
+
+          {/* NOVA 코어 */}
+          <circle cx={cx} cy={cy} r="38" fill="url(#coreGrad)" filter="url(#glow)" />
+          <circle cx={cx} cy={cy} r="28" fill="#1a0533" />
+          <text x={cx} y={cy + 6} textAnchor="middle" fontSize="22" fill="white">✦</text>
+
+          {/* 행성들 */}
+          {PLANETS.map((p, i) => {
+            const pos = planetPos(p.orbitR, angles[i]);
+            const isHover = hoveredPlanet === p.id;
+            const r = isHover ? 24 : 20;
+            return (
+              <g
+                key={p.id}
+                style={{ cursor: "pointer" }}
+                onClick={() => openBot(p.id)}
+                onMouseEnter={() => setHoveredPlanet(p.id)}
+                onMouseLeave={() => setHoveredPlanet(null)}
+              >
+                <circle cx={pos.x} cy={pos.y} r={r + 6} fill={p.color} opacity="0.18" />
+                <circle cx={pos.x} cy={pos.y} r={r} fill={p.color} filter="url(#glow)" />
+                <text x={pos.x} y={pos.y + 6} textAnchor="middle" fontSize={isHover ? "16" : "14"}>{p.emoji}</text>
+                {isHover && (
+                  <text x={pos.x} y={pos.y + r + 16} textAnchor="middle" fontSize="11" fill={p.color} fontWeight="bold">
+                    {p.label}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+
+          <defs>
+            <radialGradient id="coreGrad" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#c44dff" />
+              <stop offset="100%" stopColor="#6c00ff" />
+            </radialGradient>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="4" result="blur" />
+              <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+            </filter>
+          </defs>
+        </svg>
+      </div>
+
+      {/* 빠른 접근 버튼 */}
+      <div style={styles.quickAccess}>
+        {PLANETS.map((p) => (
+          <button
+            key={p.id}
+            style={{ ...styles.accessBtn, borderColor: p.color, color: p.color }}
+            onClick={() => openBot(p.id)}
+          >
+            {p.emoji} {p.label}
+          </button>
+        ))}
+      </div>
+
+      {/* 봇 슬라이드업 */}
+      {ActiveBotComponent && (
+        <div style={styles.botOverlay}>
+          <ActiveBotComponent onClose={closeBot} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 스타일 ────────────────────────────────────────────────────
+const styles = {
+  root: {
+    minHeight: "100vh",
+    background: "radial-gradient(ellipse at center, #1a0533 0%, #0a0015 70%)",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    fontFamily: "'Noto Sans KR', sans-serif",
+    color: "#fff",
+    overflow: "hidden",
+    position: "relative",
+  },
+  stars: {
+    position: "fixed",
+    inset: 0,
+    background:
+      "radial-gradient(1px 1px at 10% 20%, rgba(255,255,255,0.8) 0%, transparent 100%)," +
+      "radial-gradient(1px 1px at 30% 60%, rgba(255,255,255,0.6) 0%, transparent 100%)," +
+      "radial-gradient(1px 1px at 70% 10%, rgba(255,255,255,0.7) 0%, transparent 100%)," +
+      "radial-gradient(1px 1px at 85% 45%, rgba(255,255,255,0.5) 0%, transparent 100%)," +
+      "radial-gradient(1px 1px at 50% 80%, rgba(255,255,255,0.6) 0%, transparent 100%)," +
+      "radial-gradient(1px 1px at 20% 90%, rgba(255,255,255,0.4) 0%, transparent 100%)",
+    pointerEvents: "none",
+    zIndex: 0,
+  },
+  title: {
+    textAlign: "center",
+    marginTop: 32,
+    zIndex: 1,
+  },
+  titleMain: {
+    fontSize: "2rem",
+    fontWeight: "bold",
+    letterSpacing: "0.12em",
+    textShadow: "0 0 20px #c44dff",
+  },
+  titleSub: {
+    fontSize: "0.85rem",
+    color: "rgba(255,255,255,0.5)",
+    marginTop: 6,
+  },
+  solarWrap: {
+    zIndex: 1,
+    marginTop: -20,
+  },
+  quickAccess: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 10,
+    justifyContent: "center",
+    padding: "0 16px 32px",
+    zIndex: 1,
+  },
+  accessBtn: {
+    background: "transparent",
+    border: "1px solid",
+    borderRadius: 20,
+    padding: "6px 16px",
+    fontSize: "0.8rem",
+    cursor: "pointer",
+    transition: "all 0.2s",
+  },
+  botOverlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,0.65)",
+    display: "flex",
+    alignItems: "flex-end",
+    justifyContent: "center",
+    zIndex: 100,
+    animation: "fadeIn 0.25s ease",
+  },
+  botWrap: {
+    width: "100%",
+    maxWidth: 480,
+    background: "#13002a",
+    borderRadius: "20px 20px 0 0",
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+    height: "70vh",
+    boxShadow: "0 -8px 40px rgba(196,77,255,0.3)",
+    animation: "slideUp 0.3s ease",
+  },
+  botHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "14px 18px",
+    fontWeight: "bold",
+    fontSize: "1rem",
+    color: "#fff",
+  },
+  closeBtn: {
+    background: "transparent",
+    border: "none",
+    color: "#fff",
+    fontSize: "1.1rem",
+    cursor: "pointer",
+  },
+  botBody: {
+    flex: 1,
+    overflowY: "auto",
+    padding: "16px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
+  bubble: {
+    maxWidth: "78%",
+    padding: "10px 14px",
+    borderRadius: 14,
+    fontSize: "0.88rem",
+    lineHeight: 1.55,
+    color: "#fff",
+    whiteSpace: "pre-wrap",
+  },
+  quickRow: {
+    display: "flex",
+    gap: 8,
+    padding: "8px 14px",
+    overflowX: "auto",
+    flexShrink: 0,
+  },
+  quickBtn: {
+    background: "rgba(255,255,255,0.08)",
+    border: "1px solid rgba(255,255,255,0.2)",
+    borderRadius: 16,
+    padding: "5px 12px",
+    color: "#fff",
+    fontSize: "0.78rem",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+  inputRow: {
+    display: "flex",
+    gap: 8,
+    padding: "10px 14px 16px",
+    flexShrink: 0,
+  },
+  input: {
+    flex: 1,
+    background: "rgba(255,255,255,0.08)",
+    border: "1px solid rgba(255,255,255,0.15)",
+    borderRadius: 20,
+    padding: "10px 14px",
+    color: "#fff",
+    fontSize: "0.88rem",
+    outline: "none",
+  },
+  sendBtn: {
+    border: "none",
+    borderRadius: 20,
+    padding: "10px 18px",
+    color: "#fff",
+    fontSize: "0.88rem",
+    fontWeight: "bold",
+    cursor: "pointer",
+  },
+};
